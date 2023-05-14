@@ -20,7 +20,7 @@ https://github.com/99designs/gqlgen/tree/master/_examples
 
 
 query{
-  GetAllPlayers{
+  players(){
     id
   }
 }
