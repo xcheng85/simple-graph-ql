@@ -37,6 +37,7 @@ type Config struct {
 }
 
 type ResolverRoot interface {
+	Mutation() MutationResolver
 	Query() QueryResolver
 }
 
@@ -44,25 +45,30 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
-	Country struct {
-		ID   func(childComplexity int) int
-		Name func(childComplexity int) int
+	Mutation struct {
+		AddPlayer func(childComplexity int, player model.PlayerInput) int
 	}
 
 	Player struct {
 		Country func(childComplexity int) int
 		First   func(childComplexity int) int
+		Gender  func(childComplexity int) int
 		ID      func(childComplexity int) int
 		Last    func(childComplexity int) int
 	}
 
 	Query struct {
-		GetAllPlayers func(childComplexity int) int
+		GetAllPlayers         func(childComplexity int) int
+		GetAllPlayersByGender func(childComplexity int, gender model.GenderType) int
 	}
 }
 
+type MutationResolver interface {
+	AddPlayer(ctx context.Context, player model.PlayerInput) (*model.Player, error)
+}
 type QueryResolver interface {
 	GetAllPlayers(ctx context.Context) ([]*model.Player, error)
+	GetAllPlayersByGender(ctx context.Context, gender model.GenderType) ([]*model.Player, error)
 }
 
 type executableSchema struct {
@@ -80,19 +86,17 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	_ = ec
 	switch typeName + "." + field {
 
-	case "Country.id":
-		if e.complexity.Country.ID == nil {
+	case "Mutation.addPlayer":
+		if e.complexity.Mutation.AddPlayer == nil {
 			break
 		}
 
-		return e.complexity.Country.ID(childComplexity), true
-
-	case "Country.Name":
-		if e.complexity.Country.Name == nil {
-			break
+		args, err := ec.field_Mutation_addPlayer_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
 		}
 
-		return e.complexity.Country.Name(childComplexity), true
+		return e.complexity.Mutation.AddPlayer(childComplexity, args["player"].(model.PlayerInput)), true
 
 	case "Player.Country":
 		if e.complexity.Player.Country == nil {
@@ -107,6 +111,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Player.First(childComplexity), true
+
+	case "Player.Gender":
+		if e.complexity.Player.Gender == nil {
+			break
+		}
+
+		return e.complexity.Player.Gender(childComplexity), true
 
 	case "Player.id":
 		if e.complexity.Player.ID == nil {
@@ -129,6 +140,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.GetAllPlayers(childComplexity), true
 
+	case "Query.GetAllPlayersByGender":
+		if e.complexity.Query.GetAllPlayersByGender == nil {
+			break
+		}
+
+		args, err := ec.field_Query_GetAllPlayersByGender_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetAllPlayersByGender(childComplexity, args["gender"].(model.GenderType)), true
+
 	}
 	return 0, false
 }
@@ -136,7 +159,9 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
 	ec := executionContext{rc, e}
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputPlayerInput,
+	)
 	first := true
 
 	switch rc.Operation.Operation {
@@ -148,6 +173,21 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			first = false
 			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
 			data := ec._Query(ctx, rc.Operation.SelectionSet)
+			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
+	case ast.Mutation:
+		return func(ctx context.Context) *graphql.Response {
+			if !first {
+				return nil
+			}
+			first = false
+			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
+			data := ec._Mutation(ctx, rc.Operation.SelectionSet)
 			var buf bytes.Buffer
 			data.MarshalGQL(&buf)
 
@@ -199,6 +239,36 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Mutation_addPlayer_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 model.PlayerInput
+	if tmp, ok := rawArgs["player"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("player"))
+		arg0, err = ec.unmarshalNPlayerInput2githubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐPlayerInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["player"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_GetAllPlayersByGender_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 model.GenderType
+	if tmp, ok := rawArgs["gender"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("gender"))
+		arg0, err = ec.unmarshalNGenderType2githubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐGenderType(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["gender"] = arg0
+	return args, nil
+}
 
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
@@ -253,8 +323,8 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
-func (ec *executionContext) _Country_id(ctx context.Context, field graphql.CollectedField, obj *model.Country) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Country_id(ctx, field)
+func (ec *executionContext) _Mutation_addPlayer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_addPlayer(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -267,76 +337,52 @@ func (ec *executionContext) _Country_id(ctx context.Context, field graphql.Colle
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.ID, nil
+		return ec.resolvers.Mutation().AddPlayer(rctx, fc.Args["player"].(model.PlayerInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(*model.Player)
 	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
+	return ec.marshalOPlayer2ᚖgithubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐPlayer(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Country_id(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_addPlayer(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "Country",
+		Object:     "Mutation",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type ID does not have child fields")
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Player_id(ctx, field)
+			case "First":
+				return ec.fieldContext_Player_First(ctx, field)
+			case "Last":
+				return ec.fieldContext_Player_Last(ctx, field)
+			case "Country":
+				return ec.fieldContext_Player_Country(ctx, field)
+			case "Gender":
+				return ec.fieldContext_Player_Gender(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Player", field.Name)
 		},
 	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Country_Name(ctx context.Context, field graphql.CollectedField, obj *model.Country) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Country_Name(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
 	defer func() {
 		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
 		}
 	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Name, nil
-	})
-	if err != nil {
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_addPlayer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Country_Name(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Country",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
+		return
 	}
 	return fc, nil
 }
@@ -499,9 +545,9 @@ func (ec *executionContext) _Player_Country(ctx context.Context, field graphql.C
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*model.Country)
+	res := resTmp.(model.Country)
 	fc.Result = res
-	return ec.marshalNCountry2ᚖgithubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐCountry(ctx, field.Selections, res)
+	return ec.marshalNCountry2githubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐCountry(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Player_Country(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -511,13 +557,51 @@ func (ec *executionContext) fieldContext_Player_Country(ctx context.Context, fie
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Country_id(ctx, field)
-			case "Name":
-				return ec.fieldContext_Country_Name(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Country", field.Name)
+			return nil, errors.New("field of type Country does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Player_Gender(ctx context.Context, field graphql.CollectedField, obj *model.Player) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Player_Gender(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Gender, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.GenderType)
+	fc.Result = res
+	return ec.marshalNGenderType2githubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐGenderType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Player_Gender(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Player",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type GenderType does not have child fields")
 		},
 	}
 	return fc, nil
@@ -570,9 +654,78 @@ func (ec *executionContext) fieldContext_Query_GetAllPlayers(ctx context.Context
 				return ec.fieldContext_Player_Last(ctx, field)
 			case "Country":
 				return ec.fieldContext_Player_Country(ctx, field)
+			case "Gender":
+				return ec.fieldContext_Player_Gender(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Player", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_GetAllPlayersByGender(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_GetAllPlayersByGender(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetAllPlayersByGender(rctx, fc.Args["gender"].(model.GenderType))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Player)
+	fc.Result = res
+	return ec.marshalNPlayer2ᚕᚖgithubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐPlayerᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_GetAllPlayersByGender(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Player_id(ctx, field)
+			case "First":
+				return ec.fieldContext_Player_First(ctx, field)
+			case "Last":
+				return ec.fieldContext_Player_Last(ctx, field)
+			case "Country":
+				return ec.fieldContext_Player_Country(ctx, field)
+			case "Gender":
+				return ec.fieldContext_Player_Gender(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Player", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_GetAllPlayersByGender_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
 	}
 	return fc, nil
 }
@@ -2479,6 +2632,58 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(ctx context.Conte
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputPlayerInput(ctx context.Context, obj interface{}) (model.PlayerInput, error) {
+	var it model.PlayerInput
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"First", "Last", "Country", "Gender"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "First":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("First"))
+			it.First, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "Last":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("Last"))
+			it.Last, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "Country":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("Country"))
+			it.Country, err = ec.unmarshalNCountry2githubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐCountry(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "Gender":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("Gender"))
+			it.Gender, err = ec.unmarshalNGenderType2githubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐGenderType(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -2487,30 +2692,31 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(ctx context.Conte
 
 // region    **************************** object.gotpl ****************************
 
-var countryImplementors = []string{"Country"}
+var mutationImplementors = []string{"Mutation"}
 
-func (ec *executionContext) _Country(ctx context.Context, sel ast.SelectionSet, obj *model.Country) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, countryImplementors)
+func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mutationImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Mutation",
+	})
+
 	out := graphql.NewFieldSet(fields)
 	var invalids uint32
 	for i, field := range fields {
+		innerCtx := graphql.WithRootFieldContext(ctx, &graphql.RootFieldContext{
+			Object: field.Name,
+			Field:  field,
+		})
+
 		switch field.Name {
 		case "__typename":
-			out.Values[i] = graphql.MarshalString("Country")
-		case "id":
+			out.Values[i] = graphql.MarshalString("Mutation")
+		case "addPlayer":
 
-			out.Values[i] = ec._Country_id(ctx, field, obj)
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_addPlayer(ctx, field)
+			})
 
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
-		case "Name":
-
-			out.Values[i] = ec._Country_Name(ctx, field, obj)
-
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2560,6 +2766,13 @@ func (ec *executionContext) _Player(ctx context.Context, sel ast.SelectionSet, o
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "Gender":
+
+			out.Values[i] = ec._Player_Gender(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2600,6 +2813,29 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_GetAllPlayers(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
+			}
+
+			out.Concurrently(i, func() graphql.Marshaler {
+				return rrm(innerCtx)
+			})
+		case "GetAllPlayersByGender":
+			field := field
+
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_GetAllPlayersByGender(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
@@ -2969,14 +3205,24 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) marshalNCountry2ᚖgithubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐCountry(ctx context.Context, sel ast.SelectionSet, v *model.Country) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._Country(ctx, sel, v)
+func (ec *executionContext) unmarshalNCountry2githubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐCountry(ctx context.Context, v interface{}) (model.Country, error) {
+	var res model.Country
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCountry2githubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐCountry(ctx context.Context, sel ast.SelectionSet, v model.Country) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNGenderType2githubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐGenderType(ctx context.Context, v interface{}) (model.GenderType, error) {
+	var res model.GenderType
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNGenderType2githubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐGenderType(ctx context.Context, sel ast.SelectionSet, v model.GenderType) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v interface{}) (string, error) {
@@ -3046,6 +3292,11 @@ func (ec *executionContext) marshalNPlayer2ᚖgithubᚗcomᚋxcheng85ᚋsimple�
 		return graphql.Null
 	}
 	return ec._Player(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNPlayerInput2githubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐPlayerInput(ctx context.Context, v interface{}) (model.PlayerInput, error) {
+	res, err := ec.unmarshalInputPlayerInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
@@ -3340,6 +3591,13 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	}
 	res := graphql.MarshalBoolean(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOPlayer2ᚖgithubᚗcomᚋxcheng85ᚋsimpleᚑgraphqlᚑgoᚋgraphᚋmodelᚐPlayer(ctx context.Context, sel ast.SelectionSet, v *model.Player) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Player(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v interface{}) (*string, error) {

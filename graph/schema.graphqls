@@ -8,13 +8,36 @@ type Player {
   First: String!
   Last: String!
   Country: Country!
+  Gender: GenderType!
 }
 
-type Country {
-  id: ID!
-  Name: String!
+# The input object sent when someone is creating a new review
+# for input field must be one of SCALAR, ENUM, INPUT_OBJECT
+input PlayerInput {
+  First: String!
+  Last: String!
+  Country: Country!
+  Gender: GenderType!
+}
+
+enum GenderType {
+  MALE
+  FEMALE
+}
+
+enum Country {
+  CHINA
+  SWISS
+  SPAIN
+  POLAND
 }
 
 type Query {
   GetAllPlayers: [Player!]!
+  GetAllPlayersByGender(gender: GenderType!): [Player!]!
+}
+
+# The mutation type, represents all updates we can make to our data
+type Mutation {
+  addPlayer(player: PlayerInput!): Player
 }

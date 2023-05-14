@@ -2,14 +2,109 @@
 
 package model
 
-type Country struct {
-	ID   string `json:"id"`
-	Name string `json:"Name"`
-}
+import (
+	"fmt"
+	"io"
+	"strconv"
+)
 
 type Player struct {
-	ID      string   `json:"id"`
-	First   string   `json:"First"`
-	Last    string   `json:"Last"`
-	Country *Country `json:"Country"`
+	ID      string     `json:"id"`
+	First   string     `json:"First"`
+	Last    string     `json:"Last"`
+	Country Country    `json:"Country"`
+	Gender  GenderType `json:"Gender"`
+}
+
+type PlayerInput struct {
+	First   string     `json:"First"`
+	Last    string     `json:"Last"`
+	Country Country    `json:"Country"`
+	Gender  GenderType `json:"Gender"`
+}
+
+type Country string
+
+const (
+	CountryChina  Country = "CHINA"
+	CountrySwiss  Country = "SWISS"
+	CountrySpain  Country = "SPAIN"
+	CountryPoland Country = "POLAND"
+)
+
+var AllCountry = []Country{
+	CountryChina,
+	CountrySwiss,
+	CountrySpain,
+	CountryPoland,
+}
+
+func (e Country) IsValid() bool {
+	switch e {
+	case CountryChina, CountrySwiss, CountrySpain, CountryPoland:
+		return true
+	}
+	return false
+}
+
+func (e Country) String() string {
+	return string(e)
+}
+
+func (e *Country) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = Country(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid Country", str)
+	}
+	return nil
+}
+
+func (e Country) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+type GenderType string
+
+const (
+	GenderTypeMale   GenderType = "MALE"
+	GenderTypeFemale GenderType = "FEMALE"
+)
+
+var AllGenderType = []GenderType{
+	GenderTypeMale,
+	GenderTypeFemale,
+}
+
+func (e GenderType) IsValid() bool {
+	switch e {
+	case GenderTypeMale, GenderTypeFemale:
+		return true
+	}
+	return false
+}
+
+func (e GenderType) String() string {
+	return string(e)
+}
+
+func (e *GenderType) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = GenderType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid GenderType", str)
+	}
+	return nil
+}
+
+func (e GenderType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }
