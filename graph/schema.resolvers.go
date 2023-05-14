@@ -6,9 +6,7 @@ package graph
 
 import (
 	"context"
-	"fmt"
 	"strconv"
-
 	"github.com/xcheng85/simple-graphql-go/graph/model"
 )
 
@@ -28,8 +26,8 @@ func (r *mutationResolver) AddPlayer(ctx context.Context, player model.PlayerInp
 	return p, nil
 }
 
-// GetAllPlayers is the resolver for the GetAllPlayers field.
-func (r *queryResolver) GetAllPlayers(ctx context.Context) ([]*model.Player, error) {
+// Players is the resolver for the players field.
+func (r *queryResolver) Players(ctx context.Context) ([]*model.Player, error) {
 	players := make([]*model.Player, len(r.playersMap))
 	idx := 0
 	for _, p := range r.playersMap {
@@ -38,9 +36,10 @@ func (r *queryResolver) GetAllPlayers(ctx context.Context) ([]*model.Player, err
 	return players, nil
 }
 
-// GetAllPlayersByGender is the resolver for the GetAllPlayersByGender field.
-func (r *queryResolver) GetAllPlayersByGender(ctx context.Context, gender model.GenderType) ([]*model.Player, error) {
-	panic(fmt.Errorf("not implemented: GetAllPlayersByGender - GetAllPlayersByGender"))
+// Player is the resolver for the player field.
+func (r *queryResolver) Player(ctx context.Context, id string) (*model.Player, error) {
+	p:= r.playersMap[id]
+	return p, nil
 }
 
 // Mutation returns MutationResolver implementation.
@@ -52,12 +51,6 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//   - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//     it when you're done.
-//   - You have helper methods in this file. Move them out to keep these resolver files clean.
 func (r *mutationResolver) CreatePlayer(ctx context.Context, player model.PlayerInput) (*model.Player, error) {
 	numPlayers := len(r.playersMap)
 	//playerId := fmt.Sprintf("%d", numPlayers);

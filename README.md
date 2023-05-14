@@ -51,4 +51,14 @@ variables:
   "first": "Roger"
 }
 
+query{
+  player(id:0){
+    id
+    First
+    Last
+    Country
+    Gender
+  }
+}
+
 ```
